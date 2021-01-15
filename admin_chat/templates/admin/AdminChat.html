@@ -1,0 +1,399 @@
+{% extends "otree/admin/Session.html" %}
+{% load otree otree_tags i18n %}
+
+{% block styles %}
+
+    <style>
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+      width: 5px;
+      background: #f5f5f5;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      width: 1em;
+      background-color: #ddd;
+      outline: 1px solid slategrey;
+      border-radius: 1rem;
+    }
+
+    .text-small {
+      font-size: 0.9rem;
+    }
+
+    .messages-box {
+        overflow-y: scroll;
+        max-height: 380px;
+    }
+
+    .chat-box {
+        max-height: 380px;
+    }
+
+    .chat-box-messages {
+        overflow-y: scroll;
+        height: 340px;
+    }
+
+    .rounded-lg {
+      border-radius: 0.5rem;
+    }
+
+    input::placeholder {
+      font-size: 0.9rem;
+      color: #999;
+    }
+
+    .input-group, input.form-control {
+        max-width: 100%
+    }
+
+    .invisible_chat {
+        display: none;
+    }
+
+    .visible_chat {
+        display: block;
+    }
+
+    .active {
+        cursor: default;
+    }
+
+    .inactive {
+        cursor: pointer;
+    }
+
+    .inactive:hover {
+        color: #818182;
+        background-color: #ececf6;
+    }
+
+    .other_message_color {
+        background-color: #edeff2 !important;
+    }
+
+    .empty-chat-message {
+        font-size: x-large;
+        font-weight: bold;
+        text-align: center;
+        padding-top: 100px;
+    }
+
+    .avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        text-align: center;
+        line-height: 50px;
+    }
+
+    .message-notification {
+      box-sizing: border-box;
+      color: white;
+      font-family: sans-serif;
+      font-size: 26px;
+      min-width: 1em;
+      padding-left: 0.2em;
+      padding-right: 0.2em;
+      height: 1em;
+      margin-bottom: -0.2em;
+      background-color: #f00;
+      border-radius: 1em;
+      text-align: center;
+      line-height: 1em;
+        display: none;
+    }
+
+    .message-notification-number {
+        font-size: 0.5em;
+    }
+
+    </style>
+{% endblock %}
+
+{% block content %}
+    {{ block.super }}
+
+
+
+    <div class="row overflow-hidden shadow my-3 pb-3" style="border-bottom: 1px solid #dee2e6; height: 460px;">
+
+
+    <!---------------- List of paricipants' chat box --------------------->
+    <div class="col-4">
+      <div class="bg-white">
+
+        <div class="bg-gray px-4 py-2">
+          <p class="h5 mb-0 py-1">Recent</p>
+        </div>
+
+
+        <!---------------- Paricipants' message inbox --------------------->
+        <div class="messages-box" style="border-top: 1px solid rgba(0,0,0,.125); border-bottom: 1px solid rgba(0,0,0,.125)">
+          <div class="list-group rounded-0">
+              {% for participant in participants %}
+                <div data-participant-num="{{ forloop.counter }}" data-last-msg-timestamp="0"
+                     class="list-group-item list-group-item-action rounded-0 inactive participants-list-item">
+                  <div class="media">
+                    <div class="media-body">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <h6 class="mb-0">Participant {{ forloop.counter }}</h6>
+                          <small class="small font-weight-bold time-passed-from-last-message"></small>
+                      </div>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                          <p class="font-italic text-muted mb-0 text-small ml-4 last-message">No messages received yet... </p>
+                            <div class="message-notification">
+                              <div class="message-notification-number">0</div>
+                            </div>
+                        </div>
+
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% for participant in participants %}
+        <!-- Chat Box-->
+        <div class="col-8 pt-5 chat-container otree-chat invisible_chat">
+          <div class="chat-box">
+              <div class="px-1 bg-white chat-box-messages otree-chat__messages">
+                  <p class="text-muted empty-chat-message">No messages sent yet...</p>
+              </div>
+          </div>
+            <!-- Typing area -->
+          <div class="bg-light mx-4 rounded mb-0">
+            <div class="input-group otree-chat__typing_area">
+              <input type="text" placeholder="Type a message" aria-describedby="button-addon2" class="form-control rounded-1 border-0 py-2 bg-light otree-chat__input">
+              <div class="input-group-append">
+                <button id="button-addon2" type="submit" class="btn btn-link otree-chat__btn-send"> <i class="fa fa-paper-plane"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+    {% endfor %}
+
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+
+    <script src="https://use.fontawesome.com/0a3ba5174a.js"></script>
+
+    <script>
+        $(function () {
+
+            // helper function to escape HTML
+            var entityMap = {
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+              '/': '&#x2F;',
+              '`': '&#x60;',
+              '=': '&#x3D;'
+            };
+
+            function escapeHtml (string) {
+              return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+                return entityMap[s];
+              });
+            }
+
+            function getChatContainerForSelectedParticipant (participants_list, notifications_list, index) {
+                var selectedParticipant = participants_list.eq(index),
+                    previousSelectedParticipant = selectedParticipant.siblings('.active'),
+                    selectedChatContainer = $('.chat-container').eq(index),
+                    selectedMessageNotification = notifications_list.eq(index),
+                    selectedMessageNotificationNumber = selectedMessageNotification.find('.message-notification-number');
+
+                selectedChatContainer.siblings('.visible_chat').removeClass('visible_chat');
+                previousSelectedParticipant.removeClass('active text-white').addClass('inactive');
+                previousSelectedParticipant.find('p').addClass('text-muted');
+                selectedParticipant.addClass('active text-white').removeClass('inactive');
+                selectedParticipant.find('p').removeClass('text-muted');
+                selectedChatContainer.addClass('visible_chat');
+                selectedMessageNotificationNumber.html(0);
+                selectedMessageNotification.hide();
+
+
+            }
+
+            let chatLogs = $('.otree-chat__messages'),
+                chatMessageInputs = $('.otree-chat__input'),
+                chatMessageSubmit = $('.otree-chat__btn-send'),
+                participantsList = $('.participants-list-item'),
+                messageNotifications = $('.message-notification'),
+                nickNameSigned = {{ nickname_signed|json }},
+                nickname_experimenter = {{ nickname|json }},
+                nickname_i_see_for_myself = {{ nickname_i_see_for_myself|json }},
+                socketsPaths = {{ sockets_paths|json }},
+                lastMessage = "";
+
+            var Sockets = [];
+
+            function sortParticipantsByLastMessage(arg, sel, elem) {
+                var $selector = $(sel),
+                    $element = $selector.children(elem);
+                $element.sort(function(a, b) {
+                    var an = parseInt(a.getAttribute(arg)),
+                        bn = parseInt(b.getAttribute(arg));
+                    if (an < bn)
+                        return 1;
+                    if (an > bn)
+                        return -1;
+                    return 0;
+                });
+                $element.detach().appendTo($selector);
+            }
+
+            participantsList.on('click', function () {
+                var i = participantsList.index(this);
+                getChatContainerForSelectedParticipant(participantsList, messageNotifications, i);
+                var data = {
+                    'message_body': false,
+                    'nickname_signed': nickNameSigned
+                };
+                Sockets[i].send(JSON.stringify(data));
+                console.log(Sockets[i])
+            });
+
+            for (var i = 0; i < socketsPaths.length; i++){
+                Sockets[i] = makeReconnectingWebSocket(socketsPaths[i]);
+            }
+
+            for (let l = 0; l < socketsPaths.length; l++){
+                Sockets[l].onmessage = function(message) {
+                    var messages = JSON.parse(message.data);
+
+                    var messagesHTML = '',
+                        currLogs = chatLogs.eq(l),
+                        messageNotification = messageNotifications.eq(l),
+                        messageNotificationNumber = messageNotification.find('.message-notification-number');
+
+                    for (var i = 0; i < messages.length; i++) {
+                        var chatMessage = messages[i];
+                        var nickname = chatMessage.nickname;
+                        var isSeen = chatMessage.is_seen;
+                        var currMessage = "";
+
+                        var timestamp = chatMessage.timestamp;
+                        var now = new Date().getTime();
+                        var timePassed = now - (timestamp * 1000);
+                        var timeToDisplay = '';
+
+                        var hours = (Math.round(timePassed / 60000))/60;
+                        var rhours = Math.floor(hours);
+                        var mins = Math.round((hours - rhours) * 60);
+
+                        if (rhours > 0) {
+                            timeToDisplay += String(rhours).padStart(2, '0') + 'h ' + String(mins).padStart(2, '0') + 'm ago'
+                        } else {
+                            timeToDisplay += mins + 'mins ago';
+                        }
+
+                        if (chatMessage.nickname === nickname_experimenter) {
+                            nickname = nickname_i_see_for_myself;
+                            currMessage = "<div class=\"media w-75 ml-auto mb-3\">\n" +
+                                        "<div class=\"media-body\">\n" +
+                                        "<div class=\"bg-primary rounded py-2 px-3 mb-2\">\n" +
+                                        "<p class=\"text-small mb-0 text-white\">" + escapeHtml(chatMessage.body) + "</p>\n" +
+                                        "</div>\n" +
+                                        "<p class=\"small text-muted text-right\"><i class=\"fa fa-clock-o\" aria-hidden=\"true\">" +
+                                        "</i> " + timeToDisplay + "</p>\n" +
+                                        "</div>\n" +
+                                        "</div>";
+                        } else {
+                            currMessage = "<div class=\"media w-75 mb-3\">\n" +
+                                        "<div class=\"avatar other_message_color\"><b>P"+(l+1)+"</b></div>\n" +
+                                        "<div class=\"media-body ml-3\">\n" +
+                                        "<div class=\"bg-light rounded py-2 px-3 mb-2 other_message_color\">\n" +
+                                        "<p class=\"text-small mb-0 text-muted\">" + escapeHtml(chatMessage.body) + "</p>\n" +
+                                        "</div>\n" +
+                                        "<p class=\"small text-muted\"><i class=\"fa fa-clock-o\" aria-hidden=\"true\">" +
+                                        "</i> " + timeToDisplay + "</p>\n" +
+                                        "</div>\n" +
+                                        "</div>";
+
+
+                            var currParticipant = participantsList.eq(l);
+                            lastMessage = escapeHtml(chatMessage.body);
+                            currParticipant.find('p').html(lastMessage.substring(0, 40) + "...");
+                            currParticipant.find('small').html(timeToDisplay)
+                        }
+
+                        currLogs.find('.empty-chat-message').remove();
+
+                        if (!currLogs.closest('.chat-container').hasClass('visible_chat') &&
+                            !isSeen &&
+                            chatMessage.nickname !== nickname_experimenter) {
+                            messageNotificationNumber.html(parseInt(messageNotificationNumber.html())+1);
+                            messageNotification.show();
+                        }
+
+                        messagesHTML += currMessage;
+
+                        if (i === messages.length - 1) {
+                            participantsList.eq(l).attr('data-last-msg-timestamp', timestamp);
+                        }
+                    }
+
+                    currLogs.append(messagesHTML);
+
+                    currLogs.scrollTop(currLogs.prop("scrollHeight"));
+
+                    if (currLogs.closest('.chat-container').hasClass('visible_chat')) {
+                        var data = {
+                            'message_body': false,
+                            'nickname_signed': nickNameSigned
+                        };
+                        Sockets[l].send(JSON.stringify(data));
+                    }
+                    // Sorting participants' message inbox by timestamp of last message
+                    sortParticipantsByLastMessage('data-last-msg-timestamp', '.messages-box > .list-group', '.participants-list-item');
+                }
+            }
+
+            // pressing "enter" in the message box should submit a message,
+            // NOT the page's form
+            chatMessageInputs.on('keypress', function (e) {
+                if (e.which == 13) {
+                    e.preventDefault();
+                    var i = chatMessageInputs.index(this);
+                    const messageInputDom = chatMessageInputs[i];
+                    const message = messageInputDom.value;
+                    var data = {
+                        'message_body': true,
+                        'body': message,
+                        'nickname_signed': nickNameSigned
+                    };
+                    Sockets[i].send(JSON.stringify(data));
+                    messageInputDom.value = '';
+                    }
+            });
+
+            chatMessageSubmit.on('click', function(e) {
+                var i = chatMessageSubmit.index(this);
+                const messageInputDom = chatMessageInputs[i];
+                const message = messageInputDom.value;
+                var data = {
+                    'message_body': true,
+                    'body': message,
+                    'nickname_signed': nickNameSigned
+                };
+                Sockets[i].send(JSON.stringify(data));
+                messageInputDom.value = '';
+            });
+        })
+    </script>
+{% endblock %}

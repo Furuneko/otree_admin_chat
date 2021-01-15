@@ -1,0 +1,34 @@
+{% extends "global/Page.html" %}
+{% load otree static otree_admin_chat %}
+
+{% block title %}
+{% endblock %}
+
+{% block content %}
+
+    <div class="instructions">
+
+        <h5 CLASS="text-center mb-4"><b>GAME RULES</b></h5>
+        <p>
+            In this study, you will be randomly assigned to a group of four participants.
+        </p>
+        <p>
+            Each participant in the group begins with 100 points.
+            Each participant must decide how to divide their points between a public and private account.
+            Each point invested in the private account generates 1 ECU for the investor.
+            Each point invested in the public account is multiplied by 2 and then
+            divided evenly among all group members.
+        </p>
+        <p>
+            If you have any questions about the information above, please contact
+            the experimenter via the chatbox in the bottom right corner of your screen.
+        </p>
+    </div>
+
+    {% formfields %}
+    
+    {% next_button %}
+
+    {% admin_chat %}
+
+{% endblock %}

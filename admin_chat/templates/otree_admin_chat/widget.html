@@ -1,0 +1,419 @@
+{% load otree i18n %}
+
+<!------- Chat embed button ------->
+<div class="otree-admin-chat-embed-button-container otree-admin-chat-embed-button-container--not-draggable chat-toggle">
+    <button type="button" title="Open Experimenter Chat" accesskey="9" class="otree-admin-chat-embed-button">
+        <span style="" class="otree-admin-chat-embed-button__icon">
+            <svg width="66" height="66" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- <circle cx="33" cy="33" r="33" fill="#007bff"></circle> -->
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M13.8008 22.7477V31.3905C13.8008 34.5726 16.3674 37.1523 19.5335 37.1523H23.8249C23.8299 37.1523 23.8346 37.155 23.8372 37.1593L26.9036 42.296C27.4602 43.2284 28.8048 43.2284 29.3615 42.296L31.8058 38.2013C32.1943 37.5505 32.8941 37.1523 33.6492 37.1523H36.7316C39.8977 37.1523 42.4643 34.5726 42.4643 31.3905V22.7477C42.4643 19.5655 39.8977 16.9858 36.7316 16.9858H19.5335C16.3674 16.9858 13.8008 19.5655 13.8008 22.7477Z" fill="white"></path>
+            </svg>
+            <span class="otree-admin-chat-message-notification">
+                <span class="otree-admin-chat-message-notification-number">0</span>
+            </span>
+        </span>
+    </button>
+</div>
+
+<!------- Chat window ------->
+<div class="otree-admin-chat__container">
+
+    <!------- Chat header ------->
+    <div class="msg-header">
+        <i class="fa fa-comments fa-2x"></i>
+        <div class="header-experimenter">Experimenter</div>
+        <button id="otree-admin-chat__close-button" class="otree-admin-chat__close-button chat-toggle" title="Close Chat" aria-label="Close Chat" type="button" accesskey="q" style="">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+                <path d="M47.414 47.435a2.001 2.001 0 0 1-2.83 0l-12.6-12.6-12.589 12.59a2.002 2.002 0 0 1-2.83-2.831l12.588-12.589L16.567 19.42a2.002 2.002 0 0 1 2.83-2.83l12.587 12.586L44.58 16.577a2.002 2.002 0 1 1 2.83 2.83L34.815 32.006l12.6 12.6a2.001 2.001 0 0 1 0 2.83z" fill-rule="evenodd"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!------- Messages box ------->
+    <div class="msg-page otree-admin-chat__messages"></div>
+
+    <!------- Typing area ------->
+    <div class="msg-bottom">
+        <div class="input-group otree-admin-chat__input-group otree-admin-chat__typing_area">
+            <input  type="text" class="form-control otree-admin-chat__input" placeholder="Type a message...">
+            <div class="input-group-append">
+                <span class="input-group-text otree-admin-chat__btn-send">
+                    <i class="fa fa-paper-plane"></i>
+                </span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<script src="https://use.fontawesome.com/0a3ba5174a.js"></script>
+
+<script>
+    $(function () {
+
+        // helper function to escape HTML
+        var entityMap = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+          '/': '&#x2F;',
+          '`': '&#x60;',
+          '=': '&#x3D;'
+        };
+
+        function escapeHtml (string) {
+          return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+            return entityMap[s];
+          });
+        }
+
+        var varsFromDjango = {{ chat_vars_for_js|json }};
+
+        let chatLogs = $('.otree-admin-chat__messages'),
+            chatMessageInputs = $('.otree-admin-chat__input'),
+            chatMessageSubmit = $('.otree-admin-chat__btn-send'),
+            messageNotifications = $('.otree-admin-chat-message-notification'),
+            nickNameSigned = varsFromDjango.nickname_signed,
+            socketPath = varsFromDjango.socket_path;
+
+        var socket = makeReconnectingWebSocket(socketPath);
+
+
+        var $chatWidget = $('.otree-admin-chat__typing_area');
+        var $messageInput = $chatWidget.find('input');
+
+
+        socket.onmessage = function(message) {
+            var messages = JSON.parse(message.data);
+
+            var messagesHTML = '';
+
+            for (var i = 0; i < messages.length; i++) {
+                var chatMessage = messages[i];
+                var nickname = chatMessage.nickname;
+                var isSeen = chatMessage.is_seen;
+                var messageNotificationNumber = messageNotifications.find('.otree-admin-chat-message-notification-number');
+                var currMessage = "";
+
+                var timestamp = chatMessage.timestamp;
+                var now = new Date().getTime();
+                var timePassed = now - (timestamp * 1000);
+                var timeToDisplay = '';
+
+                var hours = (Math.round(timePassed / 60000))/60;
+                var rhours = Math.floor(hours);
+                var mins = Math.round((hours - rhours) * 60);
+
+                if (rhours > 0) {
+                    timeToDisplay += String(rhours).padStart(2, '0') + 'h ' + String(mins).padStart(2, '0') + 'm ago'
+                } else {
+                    timeToDisplay += mins + 'mins ago';
+                }
+
+                if (nickname === varsFromDjango.nickname) {
+
+                    currMessage = "<div class=\"received-chats\">\n" +
+                        "            <div class=\"received-chats-msg\">\n" +
+                        "                <p>" + escapeHtml(chatMessage.body) + "</p>\n" +
+                        "                <span class=\"time\">\n" +
+                        "                    You | <i class=\"fa fa-clock-o\" aria-hidden=\"true\"></i> " + timeToDisplay +
+                        "                </span>\n" +
+                        "            </div>\n" +
+                        "        </div>";
+
+                } else {
+                    currMessage = "<div class=\"outgoing-chats\">\n" +
+                        "            <div class=\"outgoing-chats-msg\">\n" +
+                        "                <p>" + escapeHtml(chatMessage.body) + "</p>\n" +
+                        "                <span class=\"time time-right\">\n" +
+                        "                    Experimenter | <i class=\"fa fa-clock-o\" aria-hidden=\"true\"></i> " + timeToDisplay +
+                        "                </span>\n" +
+                        "            </div>\n" +
+                        "        </div>";
+                }
+
+                if (chatLogs.closest('.otree-admin-chat__container').css('display') === 'none' &&
+                    !isSeen &&
+                    nickname !== varsFromDjango.nickname) {
+                    messageNotificationNumber.html(parseInt(messageNotificationNumber.html())+1);
+                    messageNotifications.show();
+                }
+
+                if (chatLogs.closest('.otree-admin-chat__container').css('display') === 'block') {
+                    var data = {
+                        'message_body': false,
+                        'nickname_signed': nickNameSigned
+                    };
+                    socket.send(JSON.stringify(data));
+                }
+
+                messagesHTML += currMessage;
+            }
+
+            chatLogs.append(messagesHTML);
+            chatLogs.scrollTop(chatLogs.prop("scrollHeight"));
+        };
+
+        chatMessageSubmit.on('click', function(e) {
+            var i = chatMessageSubmit.index(this);
+            const messageInputDom = chatMessageInputs[i];
+            const message = messageInputDom.value;
+            var data = {
+                'message_body': true,
+                'body': message,
+                'nickname_signed': varsFromDjango.nickname_signed
+            };
+            socket.send(JSON.stringify(data));
+            messageInputDom.value = '';
+        });
+
+        function sendMessage() {
+            var body = $messageInput.val();
+
+            if (!body) {
+                return;
+            }
+
+            var data = {
+                'message_body': true,
+                'body': $messageInput.val(),
+                'nickname_signed': varsFromDjango.nickname_signed
+            };
+
+            socket.send(JSON.stringify(data));
+
+            $messageInput.val('');
+        }
+
+        $chatWidget.find('button').click(function(e) {
+            sendMessage();
+        });
+
+        // pressing "enter" in the message box should submit a message,
+        // NOT the page's form
+        $messageInput.on('keypress', function (e) {
+            if (e.which == 13) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        $('.chat-toggle').click(function(){
+            $('.otree-admin-chat__container').toggle(200);
+            $('.otree-admin-chat-embed-button-container').toggle(200);
+            if (chatLogs.closest('.otree-admin-chat__container').css('display') === 'block') {
+                messageNotifications.hide();
+                var data = {
+                    'message_body': false,
+                    'nickname_signed': varsFromDjango.nickname_signed
+                };
+                socket.send(JSON.stringify(data));
+            }
+        });
+    })
+</script>
+
+<style>
+    /********** oTree Admin Chat embed button *********/
+    .otree-admin-chat-embed-button-container--not-draggable {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 10000;
+    }
+    .otree-admin-chat-embed-button-container .otree-admin-chat-embed-button {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        cursor: pointer;
+        border: 1px solid rgba(0,0,0,.05);
+        transition: .12s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        visibility: visible;
+        padding: 0;
+        margin: 0;
+        min-width: 0;
+        max-width: none;
+        min-height: 0;
+        max-height: none;
+        overflow: hidden;
+    }
+    .otree-admin-chat-embed-button {
+        width: 66px!important;
+        height: 66px!important;
+        background-color: #007bff;
+    }
+    .otree-admin-chat-embed-button-container .otree-admin-chat-embed-button__icon {
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        padding: 17%;
+        position: absolute;
+        z-index: 10010;
+        box-sizing: border-box;
+    }
+    .otree-admin-chat-embed-button-container .otree-admin-chat-embed-button__icon svg {
+        width: 100% !important;
+        height: 100% !important;
+    }
+    button.otree-admin-chat-embed-button:focus {
+        outline: none!important;
+    }
+
+    /********** oTree Admin Chat *********/
+    .otree-admin-chat__container {
+        display: none;
+        position: fixed;
+        right: 10px;
+        bottom: 10px;
+        box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+        max-width: 320px !important;
+        letter-spacing: 0.5px;
+        z-index: 9999;
+    }
+    .msg-header {
+        width: 100%;
+        height: 10%;
+        background-color: #007bff;
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .msg-header:before {
+        width: 32px !important;
+        height: 32px !important;
+        margin-left: auto;
+        content: 'X';
+        visibility: hidden;
+    }
+    .msg-header .fa {
+        margin-right: 14px;
+    }
+    .msg-header .otree-admin-chat__close-button svg {
+        fill: #fff !important;
+        width: 32px !important;
+        height: 32px !important;
+    }
+    .msg-header .otree-admin-chat__close-button {
+        margin: 5px;
+        margin-left: auto;
+        cursor: pointer;
+        background: none;
+        border: none !important;
+        padding: 0;
+        opacity: 1;
+        z-index: 100;
+        box-shadow: none;
+    }
+    button.otree-admin-chat__close-button:focus {
+        outline: none!important;
+    }
+    .msg-page {
+        height: 400px;
+        overflow-y: auto;
+        background-color: #fff;
+    }
+    .received-chats,
+    .outgoing-chats {
+        overflow: hidden;
+        margin: 10px;
+        margin-bottom: 16px;
+    }
+    .received-chats-msg,
+    .outgoing-chats-msg {
+        width: 75%;
+    }
+    .outgoing-chats-msg {
+        float: right;
+    }
+    .received-chats-msg p,
+    .outgoing-chats-msg p {
+        background: #efefef none repeat scroll 0 0;
+        border-radius: 10px;
+        color: #646464;
+        font-size: 14px;
+        margin: 0;
+        padding: 7px 10px 7px 10px;
+        width: 100%;
+    }
+    .outgoing-chats-msg p {
+        background: #007bff none repeat scroll 0 0;
+        color: #fff;
+    }
+    .time {
+        color: #777;
+        display: block;
+        font-size: 12px;
+        margin: 6px 8px 0;
+    }
+    .time-right {
+        text-align: right !important;
+    }
+    .msg-bottom {
+        height: 10%;
+        background-color: #007bff;
+        padding: 10px 0 10px 0;
+    }
+    .otree-admin-chat__input-group {
+        margin: auto;
+        outline: none !important;
+        border-radius: 20px;
+        width: 75% !important;
+        background-color: #fff;
+    }
+    .otree-admin-chat__input {
+        border: none !important;
+        border-radius: 20px !important;
+    }
+    .otree-admin-chat__btn-send {
+        background: transparent !important;
+        border: none !important;
+    }
+    .otree-admin-chat__input-group .fa {
+        color: #007bff;
+        float: right;
+        cursor: pointer;
+    }
+    .otree-admin-chat__input:focus {
+        border-color: transparent !important;
+        box-shadow: none !important;
+        border-radius: 20px;
+
+    }
+    .otree-admin-chat__input::placeholder {
+        font-size: 0.8rem;
+        color: #999;
+    }
+
+    /********** oTree Admin Chat notifications *********/
+    .otree-admin-chat-message-notification {
+        box-sizing: border-box;
+        color: white;
+        font-family: sans-serif;
+        font-size: 20px;
+        min-width: 0.8em;
+        padding-left: 0.2em;
+        padding-right: 0.2em;
+        height: 0.8em;
+        margin-bottom: -0.2em;
+        background-color: #f00;
+        border-radius: 1em;
+        text-align: center;
+        line-height: 0.5em;
+        position: absolute;
+        top: 0.7rem;
+        right: 0.5rem;
+        display: none;
+    }
+    .otree-admin-chat-message-notification-number {
+        font-size: 0.5em;
+    }
+</style>
