@@ -21,7 +21,7 @@ and by setting ROOT_URLCONF = 'admin_chat.urls'(see example in this repository):
     {% load otree static otree_admin_chat %}
 
     {% block content %}
-        <!-- Admin chat tag here -->
+        <!-- admin chat tag here -->
         {% admin_chat %}
     {% endblock %}
     ```
