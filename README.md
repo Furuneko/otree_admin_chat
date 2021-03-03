@@ -1,11 +1,13 @@
 # oTree Admin Chat
 
-Add-on that allows an experimenter to chat in real time with the participants of an oTree session.
+Add-on that allows an experimenter to chat in real time with the participants of an oTree session. Compatibility
+with oTree Lite is planned to be implemented at the end of March 2021.
 
 ### How to use it
 
 The admin chat can be added in three steps:
-* Include the folders _template/otree and admin_chat in the root folder of your oTree project.
+* Include the folders _template/otree and admin_chat in the root folder of your oTree project
+(where the file settings.py is located).
 * Update your settings.py by including the admin_chat app in the lists of your INSTALLED_APPS and EXTENSION_APPS
 and by setting ROOT_URLCONF = 'admin_chat.urls'(see example in this repository):
 
@@ -36,4 +38,4 @@ A live example is available [here](https://otree-admin-chat.herokuapp.com "oTree
 
 ### Compatibility
 
-This add-on has been tested with otree >= 3.2.3 
+This add-on has been tested for compatibility with 3.2.3 <= otree <= 3.3.11
